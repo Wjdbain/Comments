@@ -17,34 +17,27 @@
 <body>
   <div id="line"></div>
 
-  <script>
-    // Your list of lines
-    const lines = [
-      "Line number one.",
-      "Another interesting line.",
-      "Something inspiring.",
-      "A mysterious sentence.",
-      "Your custom text goes here..."
-    ];
 
-    // Deterministic random number generator using the date as a seed
-    function seededRandom(seed) {
-      const x = Math.sin(seed) * 10000;
-      return x - Math.floor(x);
-    }
+<script>
+  const lines = [
+    "Line number one.",
+    "Another interesting line.",
+    "Something inspiring.",
+    "A mysterious sentence.",
+    "Your custom text goes here..."
+  ];
 
-    function getLineOfTheDay() {
-      const today = new Date();
-      const seed =
-        today.getFullYear() * 10000 +
-        (today.getMonth() + 1) * 100 +
-        today.getDate();
+  function showRandomLine() {
+    const index = Math.floor(Math.random() * lines.length);
+    document.getElementById("line").textContent = lines[index];
+  }
 
-      const index = Math.floor(seededRandom(seed) * lines.length);
-      return lines[index];
-    }
+  // Show one immediately
+  showRandomLine();
 
-    document.getElementById("line").textContent = getLineOfTheDay();
-  </script>
+  // Change every 30 seconds (30,000 ms)
+  setInterval(showRandomLine, 30000);
+</script>
+
 </body>
 </html>
