@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Line of the Day</title>
+  <title>Comments</title>
   <style>
     body {
       font-family: sans-serif;
@@ -10,34 +10,57 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
-      font-size: 2rem;
+      text-align: center;
+      padding: 20px;
+      font-size: 1.5rem;
+      white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
-  <div id="line"></div>
-
+  <div id="line">Loading...</div>
 
 <script>
-  const lines = [
-    "Hi Chris",
-    "Get better soon chris xx",
-    "Something inspiring.",
-    "A mysterious sentence.",
-    "Your custom text goes here...",
-    "Brain tumors suck right?"
-  ];
+  const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQuP7yWIsdmoFHjrhPC0chhJ1wOjzJ-4P-Bbil5gHUR_bHPVo2G0Lkzl-45FCXkYue09o7NpvBf3F8R/pub?output=csv";  //
 
-  function showRandomLine() {
-    const index = Math.floor(Math.random() * lines.length);
-    document.getElementById("line").textContent = lines[index];
+  let entries = [];
+
+  async function loadSheet() {
+    const response = await fetch(sheetURL);
+    const csvText = await response.text();
+    entries = parseCSV(csvText);
+    showRandomEntry();
+    setInterval(showRandomEntry, 30000);
   }
 
-  // Show one immediately
-  showRandomLine();
+  function parseCSV(csv) {
+    const lines = csv.split("\n");
+    const headers = lines[0].split(",").map(h => h.trim());
+    const results = [];
 
-  // Change every 30 seconds (30,000 ms)
-  setInterval(showRandomLine, 30000);
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i].split(",");
+      if (row.length < headers.length) continue;
+
+      const obj = {};
+      headers.forEach((h, idx) => {
+        obj[h] = row[idx];
+      });
+      results.push(obj);
+    }
+    return results;
+  }
+
+  function showRandomEntry() {
+    if (entries.length === 0) return;
+    const index = Math.floor(Math.random() * entries.length);
+    const entry = entries[index];
+
+    document.getElementById("line").textContent =
+      `"${entry.comment}"\n– ${entry.commenter}`;
+  }
+
+  loadSheet();
 </script>
 
 </body>
