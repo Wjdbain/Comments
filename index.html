@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Line of the Day</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-size: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="line"></div>
+
+  <script>
+    // Your list of lines
+    const lines = [
+      "Line number one.",
+      "Another interesting line.",
+      "Something inspiring.",
+      "A mysterious sentence.",
+      "Your custom text goes here..."
+    ];
+
+    // Deterministic random number generator using the date as a seed
+    function seededRandom(seed) {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    }
+
+    function getLineOfTheDay() {
+      const today = new Date();
+      const seed =
+        today.getFullYear() * 10000 +
+        (today.getMonth() + 1) * 100 +
+        today.getDate();
+
+      const index = Math.floor(seededRandom(seed) * lines.length);
+      return lines[index];
+    }
+
+    document.getElementById("line").textContent = getLineOfTheDay();
+  </script>
+</body>
+</html>
