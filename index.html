@@ -101,7 +101,7 @@
 
       <div class="controls">
         <button id="new-btn" type="button" aria-live="polite">Show another comment</button>
-        <div class="small" id="status">Auto-advance every 30s</div>
+        <div class="small" id="status">Auto-advance every hour</div>
       </div>
     </div>
   </div>
@@ -124,7 +124,7 @@ const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQuP7yWIsdmoFH
 
 let entries = [];
 let autoTimer = null;
-const INTERVAL_MS = 30000; // 30s
+const INTERVAL_MS = 3600000; // 1h
 
 const elComment = document.getElementById('comment');
 const elMeta = document.getElementById('meta');
