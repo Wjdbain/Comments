@@ -21,41 +21,87 @@
   <div id="line">Loading...</div>
 
 <script>
-  const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQuP7yWIsdmoFHjrhPC0chhJ1wOjzJ-4P-Bbil5gHUR_bHPVo2G0Lkzl-45FCXkYue09o7NpvBf3F8R/pub?output=csv";  //
+  const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQuP7yWIsdmoFHjrhPC0chhJ1wOjzJ-4P-Bbil5gHUR_bHPVo2G0Lkzl-45FCXkYue09o7NpvBf3F8R/pub?output=csv";
 
   let entries = [];
+
+  // Special date/time
+  const specialDate = new Date(2025, 10, 28, 11, 33); // November = 10
+  const specialIndex = 457; // line 458 (0-indexed)
 
   async function loadSheet() {
     const response = await fetch(sheetURL);
     const csvText = await response.text();
     entries = parseCSV(csvText);
-    showRandomEntry();
-    setInterval(showRandomEntry, 30000);
+    showEntry();
+    setInterval(showEntry, 30000); // every 30 seconds
   }
 
+  // Robust CSV parser (handles commas in quotes)
   function parseCSV(csv) {
-    const lines = csv.split("\n");
-    const headers = lines[0].split(",").map(h => h.trim());
-    const results = [];
+    const rows = [];
+    let cur = '';
+    let row = [];
+    let inQuotes = false;
 
-    for (let i = 1; i < lines.length; i++) {
-      const row = lines[i].split(",");
-      if (row.length < headers.length) continue;
+    for (let i = 0; i < csv.length; i++) {
+      const ch = csv[i];
+      const nxt = csv[i+1];
 
-      const obj = {};
-      headers.forEach((h, idx) => {
-        obj[h] = row[idx];
-      });
-      results.push(obj);
+      if (ch === '"' && inQuotes && nxt === '"') {
+        cur += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === ',' && !inQuotes) {
+        row.push(cur);
+        cur = '';
+      } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+        row.push(cur);
+        rows.push(row);
+        row = [];
+        cur = '';
+        if (ch === '\r' && nxt === '\n') i++;
+      } else {
+        cur += ch;
+      }
     }
-    return results;
+
+    if (cur !== '' || row.length > 0) row.push(cur), rows.push(row);
+
+    // convert to objects
+    const headers = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => {
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = r[i] || "");
+      return obj;
+    });
   }
 
-  function showRandomEntry() {
+  function showEntry() {
     if (entries.length === 0) return;
+
+    const now = new Date();
+
+    // check if it's the special moment
+    if (
+      now.getFullYear() === specialDate.getFullYear() &&
+      now.getMonth() === specialDate.getMonth() &&
+      now.getDate() === specialDate.getDate() &&
+      now.getHours() === specialDate.getHours() &&
+      now.getMinutes() === specialDate.getMinutes()
+    ) {
+      const special = entries[specialIndex];
+      if (special) {
+        document.getElementById("line").textContent =
+          `"${special.comment}"\n– ${special.commenter}`;
+        return;
+      }
+    }
+
+    // otherwise random entry
     const index = Math.floor(Math.random() * entries.length);
     const entry = entries[index];
-
     document.getElementById("line").textContent =
       `"${entry.comment}"\n– ${entry.commenter}`;
   }
