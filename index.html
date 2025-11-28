@@ -1,113 +1,304 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Comments</title>
+  <meta charset="UTF-8" />
+  <title>Comments Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      font-family: sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      text-align: center;
-      padding: 20px;
-      font-size: 1.5rem;
-      white-space: pre-wrap;
+    :root {
+      --bg: #0f172a;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #9fb3d4;
+      --accent: #60a5fa;
+    }
+
+    html,body {
+      height:100%;
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background: linear-gradient(180deg, #071029 0%, #061426 100%);
+      color:var(--text);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .wrap {
+      min-height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:32px;
+      box-sizing:border-box;
+    }
+
+    .card {
+      width:100%;
+      max-width:760px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:28px;
+      box-shadow: 0 8px 30px rgba(3,6,17,0.6);
+      text-align:center;
+      transition:transform .12s ease;
+    }
+
+    .comment {
+      font-size:1.375rem;
+      line-height:1.4;
+      min-height:4.5rem;
+      margin-bottom:18px;
+      white-space:pre-wrap;
+      opacity:1;
+      transition:opacity .35s ease;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size:0.95rem;
+      margin-bottom:20px;
+    }
+
+    .controls {
+      display:flex;
+      gap:12px;
+      justify-content:center;
+      align-items:center;
+    }
+
+    button#new-btn {
+      background: linear-gradient(90deg,var(--accent), #3b82f6);
+      color: white;
+      border: none;
+      padding:10px 16px;
+      font-size:1rem;
+      border-radius:8px;
+      cursor:pointer;
+      box-shadow: 0 6px 18px rgba(59,130,246,0.18);
+    }
+    button#new-btn:active { transform: translateY(1px); }
+    button#new-btn:focus { outline: 3px solid rgba(96,165,250,0.18); outline-offset:2px; }
+
+    .small {
+      font-size:0.85rem;
+      color:var(--muted);
+    }
+
+    /* fade helper */
+    .fading { opacity: 0; }
+
+    @media (max-width:480px) {
+      .card { padding:18px; }
+      .comment { font-size:1.125rem; }
     }
   </style>
 </head>
 <body>
-  <div id="line">Loading...</div>
+  <div class="wrap">
+    <div class="card" role="region" aria-label="Comments viewer">
+      <div id="comment" class="comment">Loading comments…</div>
+      <div id="meta" class="meta"></div>
+
+      <div class="controls">
+        <button id="new-btn" type="button" aria-live="polite">Show another comment</button>
+        <div class="small" id="status">Auto-advance every 30s</div>
+      </div>
+    </div>
+  </div>
 
 <script>
-  const sheetURL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQuP7yWIsdmoFHjrhPC0chhJ1wOjzJ-4P-Bbil5gHUR_bHPVo2G0Lkzl-45FCXkYue09o7NpvBf3F8R/pub?output=csv";
+/* ═════════════════════════════════════════════════════════════
+   CONFIG: paste your published CSV link here (from Google Sheets:
+   File → Share → Publish to web → CSV)
+   Example: https://docs.google.com/spreadsheets/d/e/XXXXXXX/pub?output=csv
+   ═════════════════════════════════════════════════════════════ */
+const sheetURL = "PASTE_YOUR_CSV_LINK_HERE";
 
-  let entries = [];
+/* ═════════════════════════════════════════════════════════════
+   Implementation notes:
+   - Robust CSV parser (handles quoted fields with commas and double quotes)
+   - Tolerant header matching: supports common header names (comment/message, name/author, date/timestamp)
+   - Auto-rotate every 30s; the button shows a new random entry and resets the timer
+   - Fade animation on update
+   ═════════════════════════════════════════════════════════════ */
 
-  // Special date/time
-  const specialDate = new Date(2025, 10, 28, 11, 33); // November = 10
-  const specialIndex = 457; // line 458 (0-indexed)
+let entries = [];
+let autoTimer = null;
+const INTERVAL_MS = 30000; // 30s
 
-  async function loadSheet() {
-    const response = await fetch(sheetURL);
-    const csvText = await response.text();
-    entries = parseCSV(csvText);
-    showEntry();
-    setInterval(showEntry, 30000); // every 30 seconds
-  }
+const elComment = document.getElementById('comment');
+const elMeta = document.getElementById('meta');
+const elBtn = document.getElementById('new-btn');
+const elStatus = document.getElementById('status');
 
-  // Robust CSV parser (handles commas in quotes)
-  function parseCSV(csv) {
-    const rows = [];
-    let cur = '';
-    let row = [];
-    let inQuotes = false;
+/* Utility: robust CSV parser */
+function parseCSV(csvText) {
+  const rows = [];
+  let cur = '';
+  let row = [];
+  let inQuotes = false;
+  for (let i = 0; i < csvText.length; i++) {
+    const ch = csvText[i];
+    const nxt = csvText[i+1];
 
-    for (let i = 0; i < csv.length; i++) {
-      const ch = csv[i];
-      const nxt = csv[i+1];
-
-      if (ch === '"' && inQuotes && nxt === '"') {
-        cur += '"';
-        i++;
-      } else if (ch === '"') {
-        inQuotes = !inQuotes;
-      } else if (ch === ',' && !inQuotes) {
-        row.push(cur);
-        cur = '';
-      } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
-        row.push(cur);
-        rows.push(row);
-        row = [];
-        cur = '';
-        if (ch === '\r' && nxt === '\n') i++;
-      } else {
-        cur += ch;
-      }
+    if (ch === '"' && inQuotes && nxt === '"') { // escaped quote
+      cur += '"';
+      i++;
+    } else if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      row.push(cur);
+      cur = '';
+    } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+      // handle CRLF properly: if CR followed by LF skip the LF
+      if (ch === '\r' && nxt === '\n') { /* do nothing special */ }
+      row.push(cur);
+      rows.push(row);
+      row = [];
+      cur = '';
+      if (ch === '\r' && nxt === '\n') { i++; } // skip LF
+    } else {
+      cur += ch;
     }
+  }
+  // push last
+  if (cur !== '' || row.length > 0) {
+    row.push(cur);
+    rows.push(row);
+  }
+  if (rows.length === 0) return [];
 
-    if (cur !== '' || row.length > 0) row.push(cur), rows.push(row);
-
-    // convert to objects
-    const headers = rows[0].map(h => h.trim());
-    return rows.slice(1).map(r => {
-      const obj = {};
-      headers.forEach((h, i) => obj[h] = r[i] || "");
-      return obj;
+  // normalize headers to lowercase trimmed
+  const headers = rows[0].map(h => (h || '').trim().toLowerCase());
+  const objs = rows.slice(1).map(r => {
+    const o = {};
+    headers.forEach((h, idx) => {
+      o[h] = (r[idx] !== undefined) ? r[idx].trim() : "";
     });
+    return o;
+  });
+  return objs;
+}
+
+/* Try common header names in order of preference */
+function pickField(obj, candidates) {
+  for (const c of candidates) {
+    if (obj[c] && obj[c].trim() !== '') return obj[c].trim();
   }
-
-  function showEntry() {
-    if (entries.length === 0) return;
-
-    const now = new Date();
-
-    // check if it's the special moment
-    if (
-      now.getFullYear() === specialDate.getFullYear() &&
-      now.getMonth() === specialDate.getMonth() &&
-      now.getDate() === specialDate.getDate() &&
-      now.getHours() === specialDate.getHours() &&
-      now.getMinutes() === specialDate.getMinutes()
-    ) {
-      const special = entries[specialIndex];
-      if (special) {
-        document.getElementById("line").textContent =
-          `"${special.comment}"\n– ${special.commenter}`;
-        return;
+  // also try stripping spaces/punctuation keys
+  const keys = Object.keys(obj);
+  for (const k of keys) {
+    const clean = k.replace(/[^a-z0-9]/gi,'').toLowerCase();
+    for (const c of candidates) {
+      if (clean === c.replace(/[^a-z0-9]/gi,'').toLowerCase() && obj[k].trim() !== '') {
+        return obj[k].trim();
       }
     }
+  }
+  return "";
+}
 
-    // otherwise random entry
-    const index = Math.floor(Math.random() * entries.length);
-    const entry = entries[index];
-    document.getElementById("line").textContent =
-      `"${entry.comment}"\n– ${entry.commenter}`;
+/* Format date if present, returns nicely human-readable or empty string */
+function formatDateIfPresent(raw) {
+  if (!raw) return "";
+  // Try Date parsing; Google Sheets CSV dates are often ISO-like or numeric (we'll attempt)
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    // use local short date (UK format not forced — uses viewer locale)
+    return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+  }
+  // fallback: return raw trimmed (e.g., already formatted string)
+  return raw.trim();
+}
+
+/* Display a random entry. If resetTimer true, restart the auto-advance timer */
+function showRandomEntry({ resetTimer = false } = {}) {
+  if (!entries || entries.length === 0) {
+    elComment.textContent = "No comments found.";
+    elMeta.textContent = "";
+    return;
   }
 
-  loadSheet();
-</script>
+  const idx = Math.floor(Math.random() * entries.length);
+  const it = entries[idx];
 
+  // Common candidate header names
+  const commentCandidates = ['comment','message','text','comment_text','body'];
+  const nameCandidates = ['commenter','name','author','user','from'];
+  const dateCandidates = ['date','timestamp','time','created','createdat'];
+
+  const comment = pickField(it, commentCandidates) || "No comment text";
+  const commenter = pickField(it, nameCandidates) || "Anonymous";
+  const rawDate = pickField(it, dateCandidates);
+  const prettyDate = formatDateIfPresent(rawDate);
+
+  // fade-out, update, fade-in
+  elComment.classList.add('fading');
+  elMeta.classList.add('fading');
+
+  setTimeout(() => {
+    elComment.textContent = `"${comment}"`;
+    elMeta.textContent = `— ${commenter}${ prettyDate ? " • " + prettyDate : "" }`;
+    elComment.classList.remove('fading');
+    elMeta.classList.remove('fading');
+  }, 180);
+
+  if (resetTimer) restartTimer();
+}
+
+/* (Re)start the automatic timer */
+function restartTimer() {
+  if (autoTimer) clearInterval(autoTimer);
+  autoTimer = setInterval(() => showRandomEntry({ resetTimer:false }), INTERVAL_MS);
+  elStatus.textContent = `Auto-advance every ${INTERVAL_MS / 1000}s`;
+}
+
+/* Load CSV from sheetURL */
+async function loadSheet() {
+  if (!sheetURL || sheetURL === "PASTE_YOUR_CSV_LINK_HERE") {
+    elComment.textContent = "Please set sheetURL in the script to your published CSV link.";
+    elMeta.textContent = "";
+    return;
+  }
+
+  try {
+    const res = await fetch(sheetURL, { cache: "no-cache" });
+    if (!res.ok) throw new Error("Failed to fetch CSV: " + res.status);
+    const text = await res.text();
+    entries = parseCSV(text);
+    // remove blank rows
+    entries = entries.filter(o => {
+      // check if any meaningful field exists
+      return Object.values(o).some(v => v && v.trim() !== "");
+    });
+
+    if (entries.length === 0) {
+      elComment.textContent = "CSV loaded but no data rows found.";
+      elMeta.textContent = "Check your published CSV and header row.";
+      return;
+    }
+
+    // initial show and start timer
+    showRandomEntry({ resetTimer: true });
+    restartTimer();
+  } catch (err) {
+    console.error(err);
+    elComment.textContent = "Error loading comments.";
+    elMeta.textContent = err.message || String(err);
+  }
+}
+
+/* Button wiring */
+elBtn.addEventListener('click', () => {
+  showRandomEntry({ resetTimer: true });
+  // focus back to button for accessibility
+  elBtn.focus();
+});
+
+/* Keyboard: press space/enter when focused triggers the button (native for <button>) */
+/* Start loading */
+loadSheet();
+
+</script>
 </body>
 </html>
